@@ -8,15 +8,24 @@ import blackboard.Blackboard;
 import blackboard.Controller;
 import blackboard.Resource;
 import blackboard.bases.*;
+import reflection.Inspector;
 
+import java.io.File;
 import java.util.List;
 
 public class Main {
     //C (cut seats) - F(assemble feet) - B (assemble backrest) - S (assemble stabilizer bar) - P (package)
     public static void main(String args[]) {
-        Main.doBlackboard();
+        //Main.doBlackboard();
         //Main.doEventBus();
+        Main.doInspector();
     }
+
+    private static void doInspector() {
+        Inspector ins = new Inspector(new File("/home/krotz/IdeaProjects/DCAS/out/production/DCASS/"));
+        ins.report("reflection.TestLoader");
+    }
+
 
     private static void doEventBus() {
         Object[] workers = {new B(), new C(), new F(), new P(), new S(), new END()};
@@ -28,7 +37,7 @@ public class Main {
 
     }
 
-    public static void doBlackboard() {
+    private static void doBlackboard() {
         Blackboard b = Blackboard.instance();
         List<Resource> res = b.getResources();
         res.add(new Resource(""));
