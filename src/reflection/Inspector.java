@@ -1,119 +1,160 @@
 package reflection;
 
-import java.io.File;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+import com.sun.org.apache.xpath.internal.operations.Mod;
 
-import java.lang.reflect.Modifier;
-import java.net.MalformedURLException;
+import java.io.IOException;
+import java.lang.reflect.*;
+
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 public class Inspector {
-    File dir;
+    private URLClassLoader cl;
+    private JarFile jar;
+    private Set<Class> dependencies;
 
-    public Inspector(File dir) {
-        this.dir = dir;
+    public Inspector(String path) throws IOException {
+        jar = new JarFile(path);
+        URL[] urls = { new URL("jar:file:" + path + "!/") };
+        cl = URLClassLoader.newInstance(urls);
+        dependencies = new HashSet<Class>();
     }
 
-    public void report(String class_name) {
-        try {
-            URL url = dir.toURI().toURL();
-            URL[] urls = new URL[]{url};
 
-            ClassLoader cl = new URLClassLoader(urls);
+    public void report() {
+        Enumeration e = jar.entries();
+        dependencies.clear();
 
-            Class cls = cl.loadClass(class_name);
-            System.out.println(inspect(cls));
+        while (e.hasMoreElements()) {
+            JarEntry je = (JarEntry) e.nextElement();
+            if(je.isDirectory() || !je.getName().endsWith(".class")){
+                continue;
+            }
 
-            Class[] innerClasses = cls.getDeclaredClasses();
-            System.out.println("\n\nFirst level Inner Classes:\n=====================\n");
-            for(Class c: innerClasses)
-                System.out.println(inspect(c));
+            // -6 because of .class
+            String className = je.getName().substring(0,je.getName().length()-6);
+            className = className.replace('/', '.');
 
-
-        } catch (MalformedURLException ignored) {
-        } catch (ClassNotFoundException ignored) {
-            System.out.println("Class not found: " + class_name);
+            try {
+                Class c = cl.loadClass(className);
+                System.out.println(inspect(c) + "\n===============================\n");
+            } catch (Exception ignored) {}
         }
     }
 
     private String inspect(Class cls) {
         String output = "";
 
-        Constructor constructors[]  = cls.getDeclaredConstructors();
-        Method methods[] = cls.getDeclaredMethods();
-        Class[] theInterfaces = cls.getInterfaces();
-        Field[] fields = cls.getDeclaredFields();
-        Class[] parameterTypes;
-
-        int modifiers = cls.getModifiers();
-        boolean isAbstract = Modifier.isAbstract(modifiers);
-        boolean isInterface = Modifier.isInterface(modifiers);
-        boolean isPublic = Modifier.isPublic(modifiers);
-        boolean isPrivate;
-
-        output += (isPublic ? "public " : "") + (isInterface ? "interface " : ((isAbstract ? "abstract " : "") + "class "));
-        output += cls.getSimpleName() + "\n";
+        output += parseModifiers(cls.getModifiers()) + "class " + cls.getSimpleName() + "\n";
 
         output += "Interfaces implemented:";
-        for (Class c: theInterfaces) {
-            String interfaceName = c.getSimpleName();
-            output += " " + interfaceName;
+        for (Class c: cls.getInterfaces()) {
+            dependencies.add(c);
+            output += " " + c.getSimpleName();
         }
-        output += "\nExtended class: ";
-        output += cls.getSuperclass().getSimpleName() + "\n\n";
+
+        Class type = cls.getSuperclass();
+        output += "\nExtended class: " + type.getSimpleName() + "\n\n";
+        dependencies.add(type);
 
         output += "Fields:\n";
-        for(Field f: fields) {
-            modifiers = f.getModifiers();
-            isPublic = Modifier.isPublic(modifiers);
-            isPrivate = Modifier.isPrivate(modifiers);
+        for(Field f: cls.getDeclaredFields()) {
+            type = f.getType();
+            output += parseModifiers(f.getModifiers());
+            output += type.getSimpleName() + " " + f.getName() + "\n";
 
-            output += (isPrivate ? "private " : (isPublic ? "public " : ""))
-                    + f.getType().getSimpleName() + " " + f.getName() + "\n";
+            if(type.isArray())
+                dependencies.add(type.getComponentType());
+            else
+                dependencies.add(type);
         }
 
 
         output += "\nConstructors:\n";
-        for(Constructor c: constructors) {
-            modifiers = c.getModifiers();
-            isPublic = Modifier.isPublic(modifiers);
-            isPrivate = Modifier.isPrivate(modifiers);
-
-            parameterTypes = c.getParameterTypes();
-
-            output += (isPrivate ? "private " : (isPublic ? "public " : ""))
-                    + c.getName() + "(";
-
-            for(Class k: parameterTypes)
-                output += k.getSimpleName() + ", ";
-
-            if(parameterTypes.length > 0)
-                output = output.substring(0, output.length() - 2); //remove last comma and space
-            output += ")\n";
-        }
+        for(Constructor c: cls.getDeclaredConstructors())
+            output += parseMethod(c);
 
         output += "\nMethods:\n";
-        for(Method m: methods) {
-            modifiers = m.getModifiers();
-            isPublic = Modifier.isPublic(modifiers);
-            isPrivate = Modifier.isPrivate(modifiers);
+        for(Method m: cls.getDeclaredMethods())
+            output += parseMethod(m);
 
-            parameterTypes = m.getParameterTypes();
 
-            output += (isPrivate ? "private " : (isPublic ? "public " : ""))
-                    + m.getName() + "(";
-
-            for(Class k: parameterTypes)
-                output += k.getSimpleName() + ", ";
-
-            if(parameterTypes.length > 0)
-                output = output.substring(0, output.length() - 2); //remove last comma and space
-            output += "): " + m.getReturnType().getSimpleName() + "\n";
-        }
+        output += "\nDEPENDENCIES:\n";
+        removeNativeTypes();
+        for(Class k: dependencies)
+            output += k.getSimpleName() + " ";
 
         return output;
+    }
+
+
+    private void removeNativeTypes() {
+        Set<Class> out = new HashSet<Class>();
+
+        for(Class k: dependencies) {
+            if(k.getName().matches("java.*|int|float|boolean|double|byte|short|long|char|Integer|Double|Float|Boolean|Short|Byte|Long|Chararacter"))
+                continue;
+            out.add(k);
+        }
+
+        dependencies = out;
+    }
+
+
+    private String parseMethod(Member m) {
+        String out = "";
+        Class[] paramTypes;
+        String returnTypeName = "";
+
+        if ( m instanceof Method ) {
+            Method method = ((Method) m);
+            paramTypes = method.getParameterTypes();
+            returnTypeName = method.getReturnType().getSimpleName();
+        } else {
+            paramTypes = ((Constructor) m).getParameterTypes();
+        }
+
+        out += parseModifiers(m.getModifiers()) + m.getName() + "(";
+        for(Class k: paramTypes) {
+            out += k.getSimpleName() + ", ";
+            if(k.isArray())
+                dependencies.add(k.getComponentType());
+            else
+                dependencies.add(k);
+        }
+
+        if(paramTypes.length > 0)
+            out = out.substring(0, out.length() - 2); //remove last comma and space
+        out += "): " + returnTypeName + "\n";
+
+        return out;
+    }
+
+
+    private String parseModifiers(int modifiers) {
+        String out = "";
+
+        if (Modifier.isPublic(modifiers))
+            out += "public ";
+        else if(Modifier.isPrivate(modifiers))
+            out += "private ";
+        else if (Modifier.isProtected(modifiers))
+            out += "protected ";
+
+        if (Modifier.isInterface(modifiers))
+            out += "interface ";
+
+        if (Modifier.isStatic(modifiers))
+            out += "static ";
+
+        if(Modifier.isAbstract(modifiers))
+            out += "abstract ";
+
+        return out;
     }
 }

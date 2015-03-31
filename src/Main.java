@@ -10,7 +10,7 @@ import blackboard.Resource;
 import blackboard.bases.*;
 import reflection.Inspector;
 
-import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 public class Main {
@@ -18,12 +18,24 @@ public class Main {
     public static void main(String args[]) {
         //Main.doBlackboard();
         //Main.doEventBus();
-        Main.doInspector();
+        Main.doInspector(args);
     }
 
-    private static void doInspector() {
-        Inspector ins = new Inspector(new File("/home/krotz/IdeaProjects/DCAS/out/production/DCASS/"));
-        ins.report("reflection.TestLoader");
+    private static void doInspector(String[] args) {
+        if (args.length != 1) {
+            System.out.println("Jar Path missing");
+            return;
+        }
+
+        Inspector ins;
+        try {
+            ins = new Inspector(args[0]);
+        } catch (IOException e) {
+            System.out.println("Invalid jar at location: " + args[0]);
+            return;
+        }
+
+        ins.report();
     }
 
 
