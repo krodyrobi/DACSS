@@ -3,11 +3,10 @@ require 'socket'
 
 
 class Broker
-  # config has to be a hash with {hostname: "localhost", port: 2000, default_server_ip: "localhost", default_server_port: 1111}
   def initialize(config)
     @server_hash = {}
-    @config = config
-    @server = TCPServer.new @config[:hostname], @config[:port]
+    @broker_config = config
+    @server = TCPServer.new @broker_config[:hostname], @broker_config[:port]
 
     run
   end
@@ -25,7 +24,12 @@ class Broker
 
 
   def process(input)
-    input = JSON.parse input
+    begin
+      input = JSON.parse input
+    rescue
+      return message_invalid  #Parse error could kill the broker for everybody :D
+    end
+
     size = input.length
 
     if size == 0 or size > 3 or not input.has_key? 'server_name'
@@ -37,8 +41,8 @@ class Broker
       if size == 1
         message = server_registered ? message_found( server_name ) : message_not_found( server_name )
       else
-        port = ( input.has_key? 'port' ) ? input['port'].to_i : @config[:default_server_port]
-        ip = ( input.has_key? 'ip' ) ? input['ip'].to_s : @config[:default_server_ip]
+        port = ( input.has_key? 'port' ) ? input['port'].to_i : @broker_config[:default_server_port]
+        ip = ( input.has_key? 'ip' ) ? input['ip'].to_s : @broker_config[:default_server_ip]
 
         config = {ip: ip, port: port}
         @server_hash[ server_name ] = config

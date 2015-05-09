@@ -6,4 +6,7 @@ class InfoClient < ClientProxy
   end
 end
 
-InfoClient.new 'Info'
+client = InfoClient.new 'Info'
+p client.get_temp_city('Los Angeles')
+p client.get_road_info(31)
+#p client.randomFunc

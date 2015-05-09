@@ -1,8 +1,8 @@
 require_relative 'proxy/server_proxy'
 
 class InfoServer < ServerProxy
-  def initialize(server_name, ip='localhost', port)
-    start_server server_name, ip, port
+  def initialize(server_name, ip='localhost')
+    start_server server_name, ip
   end
 
 
@@ -17,4 +17,4 @@ class InfoServer < ServerProxy
   end
 end
 
-InfoServer.new 'Info', port=1111
+InfoServer.new 'Info'

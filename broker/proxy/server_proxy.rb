@@ -2,35 +2,35 @@ require 'json'
 require 'socket'
 
 class ServerProxy
-  def start_server(server_name, ip='localhost', port)
-    @config = JSON.parse(IO.read(__dir__ + '/broker.json'))
-    @server = register_server server_name, ip, port
+  def start_server(server_name, ip='localhost')
+    @broker_config = JSON.parse(IO.read(__dir__ + '/broker.json'))
+
+    @server_socket = TCPServer.new 0
+    @server = register_server server_name, ip, @server_socket.addr[1]
+
     run
   end
 
 
   private
   def register_server(server_name, ip, port)
-    socket = TCPSocket.new @config['ip'], @config['port']
+    socket = TCPSocket.new @broker_config['ip'], @broker_config['port']
 
-    p server_name, ip, port
-    p @config['ip'], @config['port']
-    socket.puts JSON.generate({server_name: server_name, ip: ip, port: port})
+    data = {server_name: server_name, ip: ip, port: port}
+    socket.puts JSON.generate data
     response = socket.gets.chomp
     socket.close
 
     parsed_response = JSON.parse(response)
     raise parsed_response['error'] if parsed_response.has_key? 'error'
 
-    parsed_response
+    data
   end
 
 
   def run
-    server = TCPServer.new @server['port']
-
     loop do
-      client = server.accept
+      client = @server_socket.accept
       client.puts( process( client.gets.chomp ) )
       client.close
     end

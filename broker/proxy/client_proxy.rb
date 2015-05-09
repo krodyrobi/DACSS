@@ -3,15 +3,16 @@ require 'socket'
 
 class ClientProxy
   def initialize(server_name)
-    @config = JSON.parse( IO.read(__dir__ + '/broker.json') )
+    @broker_config = JSON.parse( IO.read(__dir__ + '/broker.json') )
     @endpoint = get_server(server_name)
   end
 
 
-  def self.method_missing(method_sym, *arguments, &block)
-    socket = TCPSocket.new @endpoint['ip'], @endpoint['port']
+  def method_missing(method_sym, *arguments, &block)
+    socket = TCPSocket.new @endpoint[:ip], @endpoint[:port]
 
-    socket.puts( JSON.generate({class: self.class.name, method: method_sym.to_s, arguments: arguments}) )
+    server_class = self.class.name.gsub /Client/, 'Server'
+    socket.puts( JSON.generate({class: server_class, method: method_sym.to_s, arguments: arguments}) )
     return_data = socket.gets.chomp
     socket.close
 
@@ -24,9 +25,9 @@ class ClientProxy
 
   private
   def get_server(server_name)
-    socket = TCPSocket.new @config['ip'], @config['port']
+    socket = TCPSocket.new @broker_config['ip'], @broker_config['port']
 
-    socket.puts({server_name: server_name})
+    socket.puts( JSON.generate({server_name: server_name}) )
     response = socket.gets.chomp
     socket.close
 
