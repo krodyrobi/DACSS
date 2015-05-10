@@ -5,8 +5,11 @@ require 'socket'
 class Broker
   def initialize(config)
     @server_hash = {}
+    @server = TCPServer.new config[:ip], 0
+
+    config[:port] = @server.addr[1]
     @broker_config = config
-    @server = TCPServer.new @broker_config[:hostname], @broker_config[:port]
+    dump_config
 
     run
   end
@@ -14,10 +17,15 @@ class Broker
 
   private
 
+  def dump_config(path = __dir__ + '/proxy/broker.json')
+    IO.write path, JSON.generate(@broker_config)
+  end
+
+
   def run
     loop do
       client = @server.accept
-      client.puts( process( client.gets.chomp ) )
+      client.puts process( client.gets.chomp )
       client.close
     end
   end
@@ -31,6 +39,7 @@ class Broker
     end
 
     size = input.length
+    server_default = @broker_config[:server]
 
     if size == 0 or size > 3 or not input.has_key? 'server_name'
       message = message_invalid
@@ -41,8 +50,8 @@ class Broker
       if size == 1
         message = server_registered ? message_found( server_name ) : message_not_found( server_name )
       else
-        port = ( input.has_key? 'port' ) ? input['port'].to_i : @broker_config[:default_server_port]
-        ip = ( input.has_key? 'ip' ) ? input['ip'].to_s : @broker_config[:default_server_ip]
+        port = input.fetch 'port', server_default[:port]
+        ip = input.fetch 'ip', server_default[:ip]
 
         config = {ip: ip, port: port}
         @server_hash[ server_name ] = config
@@ -81,4 +90,4 @@ class Broker
   end
 end
 
-Broker.new({hostname: 'localhost', port: 2000, default_server_ip: 'localhost', default_server_port: 1111})
+Broker.new({ip: 'localhost', server: { ip: 'localhost', port: 1111}})

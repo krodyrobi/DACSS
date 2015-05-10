@@ -1,12 +1,8 @@
 require_relative 'proxy/client_proxy'
 
-class InfoClient < ClientProxy
-  def initialize(server_name)
-    super server_name
-  end
-end
+class InfoClient < ClientProxy; end
 
-client = InfoClient.new 'Info'
+client = InfoClient.new
 p client.get_temp_city('Los Angeles')
 p client.get_road_info(31)
 #p client.randomFunc

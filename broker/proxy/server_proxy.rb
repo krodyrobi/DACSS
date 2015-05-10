@@ -2,10 +2,12 @@ require 'json'
 require 'socket'
 
 class ServerProxy
-  def start_server(server_name, ip='localhost')
-    @broker_config = JSON.parse(IO.read(__dir__ + '/broker.json'))
-
+  def initialize(ip = 'localhost')
+    @broker_config = JSON.parse IO.read(__dir__ + '/broker.json')
     @server_socket = TCPServer.new 0
+
+    raise 'A child of the ServerProxy class should end in `Server`' unless self.class.name.end_with? 'Server'
+    server_name = self.class.name.chomp 'Server'
     @server = register_server server_name, ip, @server_socket.addr[1]
 
     run
@@ -14,9 +16,9 @@ class ServerProxy
 
   private
   def register_server(server_name, ip, port)
-    socket = TCPSocket.new @broker_config['ip'], @broker_config['port']
-
     data = {server_name: server_name, ip: ip, port: port}
+
+    socket = TCPSocket.new @broker_config['ip'], @broker_config['port']
     socket.puts JSON.generate data
     response = socket.gets.chomp
     socket.close
@@ -31,7 +33,7 @@ class ServerProxy
   def run
     loop do
       client = @server_socket.accept
-      client.puts( process( client.gets.chomp ) )
+      client.puts process( client.gets.chomp )
       client.close
     end
   end
