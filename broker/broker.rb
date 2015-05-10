@@ -90,4 +90,4 @@ class Broker
   end
 end
 
-Broker.new({ip: 'localhost', server: { ip: 'localhost', port: 1111}})
+Broker.new({ip: 'localhost', server: {ip: 'localhost', port: 1111}})
